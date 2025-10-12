@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 
 // --- DATOS Y CONFIGURACIÓN ---
@@ -111,11 +110,11 @@ const GlobalStyles = () => (
         
         .swimming-fish { animation: swim-around 11s infinite ease-in-out; }
         @keyframes swim-around {
-            0% { transform: translate(0, 0) scaleX(1); }
-            25% { transform: translate(40px, 20px) scaleX(1); }
-            50% { transform: translate(20px, -10px) scaleX(-1); }
-            75% { transform: translate(-30px, 15px) scaleX(-1); }
-            100% { transform: translate(0, 0) scaleX(1); }
+            0% { transform: translate(0, 0) scaleX(-1); }
+            25% { transform: translate(40px, 20px) scaleX(-1); }
+            50% { transform: translate(20px, -10px) scaleX(1); }
+            75% { transform: translate(-30px, 15px) scaleX(1); }
+            100% { transform: translate(0, 0) scaleX(-1); }
         }
         
         .emoji-fish {
@@ -178,6 +177,37 @@ const GlobalStyles = () => (
             50% { transform: translateY(-20px); opacity: 1; }
             100% { transform: translateY(20px); opacity: 0.5; }
         }
+        
+        /* Estilos del slider de volumen */
+        .volume-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 80px;
+            height: 6px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 5px;
+            outline: none;
+            transition: opacity .2s;
+        }
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #fff;
+            cursor: pointer;
+            border-radius: 50%;
+            border: 2px solid #3b82f6;
+        }
+        .volume-slider::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: #fff;
+            cursor: pointer;
+            border-radius: 50%;
+            border: 2px solid #3b82f6;
+        }
+
     `}</style>
 );
 
@@ -347,8 +377,11 @@ const EmojiFishSwarm = React.memo(() => {
             for (let i = 0; i < 80; i++) {
                 const directionLTR = Math.random() > 0.5;
                 
-                const startTransform = directionLTR ? 'translateX(-10vw) scaleX(1)' : 'translateX(110vw) scaleX(-1)';
-                const endTransform = directionLTR ? 'translateX(110vw) scaleX(1)' : 'translateX(-10vw) scaleX(-1)';
+                // Fish emojis face left by default. For LTR, we need to flip them (scaleX(-1)).
+                const scaleX = directionLTR ? 'scaleX(-1)' : 'scaleX(1)';
+
+                const startTransform = directionLTR ? `translateX(-10vw) ${scaleX}` : `translateX(110vw) ${scaleX}`;
+                const endTransform = directionLTR ? `translateX(110vw) ${scaleX}` : `translateX(-10vw) ${scaleX}`;
                 
                 let emoji;
                 if (Math.random() < 0.2) {
@@ -428,6 +461,27 @@ const Preloader = () => (
     </div>
 );
 
+const AudioControls = ({ isMuted, volume, onMuteToggle, onVolumeChange }: { isMuted: boolean, volume: number, onMuteToggle: () => void, onVolumeChange: (e: React.ChangeEvent<HTMLInputElement>) => void }) => (
+    <div className="absolute bottom-4 right-4 bg-white/30 backdrop-blur-sm p-2 rounded-full flex items-center gap-2 z-30">
+        <button onClick={onMuteToggle} className="text-white hover:bg-white/20 rounded-full p-1 transition-colors">
+            {isMuted ? (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l-4-4m0 4l4-4" /></svg>
+            ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg>
+            )}
+        </button>
+        <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value={volume}
+            onChange={onVolumeChange}
+            className="volume-slider"
+        />
+    </div>
+);
+
 
 // --- COMPONENTE PRINCIPAL ---
 export default function App() {
@@ -445,6 +499,8 @@ export default function App() {
     const [showLogbook, setShowLogbook] = useState(false);
     const [gameResult, setGameResult] = useState<GameResult | null>(null);
     const [isInfoActive, setIsInfoActive] = useState(false);
+    const [volume, setVolume] = useState(0.2);
+    const [isMuted, setIsMuted] = useState(false);
     const gameContainerRef = useRef<HTMLDivElement>(null);
 
     // Preloader de imágenes
@@ -478,6 +534,14 @@ export default function App() {
         bgMusic: useRef<HTMLAudioElement>(null), sfxClick: useRef<HTMLAudioElement>(null), sfxWin: useRef<HTMLAudioElement>(null),
         sfxLose: useRef<HTMLAudioElement>(null), sfxCorrect: useRef<HTMLAudioElement>(null)
     };
+    
+    // Sincroniza el estado de React con el elemento de audio
+    useEffect(() => {
+        if (audioRefs.bgMusic.current) {
+            audioRefs.bgMusic.current.volume = volume;
+            audioRefs.bgMusic.current.muted = isMuted;
+        }
+    }, [volume, isMuted]);
 
     const playSfx = (soundRef: React.RefObject<HTMLAudioElement>) => {
         if (soundRef.current) {
@@ -496,7 +560,6 @@ export default function App() {
     const handleStartGame = () => {
         playSfx(audioRefs.sfxClick);
         if (audioRefs.bgMusic.current) {
-            audioRefs.bgMusic.current.volume = 0.2;
             audioRefs.bgMusic.current.play().catch(e => {});
         }
         setIsInfoActive(true);
@@ -679,6 +742,13 @@ export default function App() {
                         <button onClick={() => setShowLogbook(true)} className="absolute bottom-4 left-4 bg-yellow-500 hover:bg-yellow-600 text-white font-bold p-3 rounded-full shadow-lg z-30 transform hover:scale-110 transition">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z" /></svg>
                         </button>
+                        
+                        <AudioControls 
+                            isMuted={isMuted}
+                            volume={volume}
+                            onMuteToggle={() => setIsMuted(prev => !prev)}
+                            onVolumeChange={(e) => setVolume(parseFloat(e.target.value))}
+                        />
                         
                         <DialogueBox text={dialogue} />
                         
