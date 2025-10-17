@@ -1,24 +1,871 @@
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Reto Marino: Aventura Interactiva</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-  <script type="importmap">
-{
-  "imports": {
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/"
-  }
+// --- DATOS Y CONFIGURACIÓN ---
+const TRASH_GOAL = 10;
+const TRASH_LIMIT = 5;
+const MISSION_TIME = 45;
+const TRASH_EMOJIS = ['🍾', '🛍️', '🥫', '🥤', '🥡'];
+const CREATURE_FIND_LIST = ['Camarón', 'Pez Loro', 'Caballito de Mar', 'Pez Globo', 'Pólipo de Coral'];
+const FISH_EMOJIS = ['🐠', '🐟', '🐡', '🦐', '🦀'];
+
+const CREATURE_DATA = {
+    'Pulpo Sabio': { src: 'https://raw.githubusercontent.com/NucleoColectivo/Juego_Oceano/main/personajes/png/pulpo.png', info: "Inteligente y curioso, siempre está dispuesto a resolver problemas." },
+    'Coral Cerebro': { src: 'https://raw.githubusercontent.com/NucleoColectivo/Juego_Oceano/main/personajes/png/cerebro.png', info: "Sabio y paciente. A menudo actúa como el consejero del grupo." },
+    'Coral Estrella': { src: 'https://raw.githubusercontent.com/NucleoColectivo/Juego_Oceano/main/personajes/png/estrella.png', info: "Extrovertido y optimista. ¡Siempre ilumina el día de los demás!" },
+    'Pólipo de Coral': { src: 'https://raw.githubusercontent.com/NucleoColectivo/Juego_Oceano/main/personajes/png/polipo.png', info: "Pequeño y tímido, pero muy valiente y crucial para el arrecife." },
+    'Coral Cuerno de Alce': { src: 'https://raw.githubusercontent.com/NucleoColectivo/Juego_Oceano/main/personajes/png/alce.png', info: "Un coral fuerte y protector, siempre dispuesto a defender a sus amigos y su hogar.", isCorrectCoral: true },
+    'Coral Flor': { src: 'https://raw.githubusercontent.com/NucleoColectivo/Juego_Oceano/main/personajes/png/flor.png', info: "Elegante y carismático. Irradia una sensación de belleza y tranquilidad." },
+    'Esponja de Mar': { src: 'https://raw.githubusercontent.com/NucleoColectivo/Juego_Oceano/main/personajes/png/esponja.png', info: "Las esponjas son animales simples que filtran el agua para alimentarse, ayudando a mantener el océano limpio." },
+    'Camarón': { src: 'https://raw.githubusercontent.com/NucleoColectivo/Juego_Oceano/main/personajes/png/camaron.png', info: "Los camarones limpian a otros peces y el arrecife, comiendo parásitos y algas. ¡Son los conserjes del océano!" },
+    'Pez Globo': { src: 'https://raw.githubusercontent.com/NucleoColectivo/Juego_Oceano/main/personajes/png/pez_globo.png', info: "Puede inflarse cuando se siente amenazado. Es miedoso pero valiente cuando es necesario." },
+    'Pez Loro': { src: 'https://raw.githubusercontent.com/NucleoColectivo/Juego_Oceano/main/personajes/png/loro.png', info: "Divertido y charlatán. Le gusta hacer reír a sus amigos." },
+    'Caballito de Mar': { src: 'https://raw.githubusercontent.com/NucleoColectivo/Juego_Oceano/main/personajes/png/caballito.png', info: "Su nombre en latín es Hippocampus, que significa 'caballo oruga'. Se aferran a las plantas con su cola prensil." },
+    'Pez Loreto': { src: 'https://raw.githubusercontent.com/NucleoColectivo/Juego_Oceano/main/personajes/png/loreto.png', info: "También llamado Gramma Real. Es rápido, ágil y le encanta explorar." }
+};
+
+const QUIZ_QUESTIONS = [
+    { question: "¿Quién es conocido por ser fuerte y proteger a sus amigos?", options: ["Pez Loro", "Coral Cuerno de Alce", "Pólipo de Coral"], answer: "Coral Cuerno de Alce" },
+    { question: "¿Qué personaje es muy trabajador y le gusta mantener todo limpio?", options: ["Camarón", "Pez Globo", "Esponja de Mar"], answer: "Camarón" },
+    { question: "¿Cuál de nuestros amigos es extrovertido y siempre optimista?", options: ["Coral Cerebro", "Pulpo Sabio", "Coral Estrella"], answer: "Coral Estrella" },
+    { question: "¿Quién es el consejero sabio y paciente del grupo?", options: ["Pez Loreto", "Coral Cerebro", "Esponja de Mar"], answer: "Coral Cerebro" },
+    { question: "¿Qué pez es divertido, charlatán y le gusta contar historias?", options: ["Pez Loro", "Pez Globo", "Caballito de Mar"], answer: "Pez Loro" },
+];
+
+const ASSETS_TO_PRELOAD = [
+    ...Object.values(CREATURE_DATA).map(c => c.src),
+    'https://raw.githubusercontent.com/NucleoColectivo/Juego_Oceano/main/personajes/png/fondo.png',
+    'https://raw.githubusercontent.com/NucleoColectivo/Juego_Oceano/main/personajes/png/arena.png',
+    'https://raw.githubusercontent.com/NucleoColectivo/Juego_Oceano/main/LOGOS/RETO_MARINO2.png',
+    'https://raw.githubusercontent.com/NucleoColectivo/Juego_Oceano/main/LOGOS/LOGO%20ADM-01.png',
+    'https://raw.githubusercontent.com/NucleoColectivo/Juego_Oceano/main/Sounds/SONIDO/Music_fx_cheerful_and_oceanthemed_background%20(3).m4a',
+    'https://raw.githubusercontent.com/NucleoColectivo/Juego_Oceano/main/Sounds/SONIDO/SFX_for_a_button_or_interface.m4a',
+    'https://raw.githubusercontent.com/NucleoColectivo/Juego_Oceano/main/Sounds/SONIDO/SFX_win_sound.m4a',
+    'https://raw.githubusercontent.com/NucleoColectivo/Juego_Oceano/main/Sounds/SONIDO/SFX_for_a_game_or_app_when_the_user_loses.m4a',
+    'https://raw.githubusercontent.com/NucleoColectivo/Juego_Oceano/main/Sounds/SONIDO/SFX_for_a_correct_or_successful_action.m4a'
+];
+
+
+// --- COMPONENTE DE ESTILOS GLOBALES ---
+const GlobalStyles = () => (
+    <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Kalam:wght@700&display=swap');
+        
+        body, html, #root { 
+            font-family: 'Inter', sans-serif;
+            background-color: #000;
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+        .font-handwriting { font-family: 'Kalam', cursive; }
+        
+        #splash-screen, .ocean-bg {
+            background-image: url('https://raw.githubusercontent.com/NucleoColectivo/Juego_Oceano/main/personajes/png/fondo.png');
+            background-size: cover;
+            background-position: center;
+        }
+
+        .ocean-bg { position: relative; overflow: hidden; }
+
+        .bubble {
+            position: absolute;
+            bottom: -150px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            animation: rise linear infinite;
+            z-index: 7;
+        }
+        @keyframes rise {
+            0% { transform: translateY(0); opacity: 0.8; }
+            100% { transform: translateY(-120vh); opacity: 0; }
+        }
+        
+        .trash-item {
+            position: absolute;
+            top: -60px;
+            animation-name: fall;
+            animation-timing-function: linear;
+            cursor: pointer;
+            z-index: 25;
+        }
+        @keyframes fall {
+            from { transform: translateY(0); }
+            to { transform: translateY(calc(100vh - 150px)); }
+        }
+       
+        .danger-alarm { animation: flash-red 0.5s 3; }
+        @keyframes flash-red {
+            0%, 100% { box-shadow: inset 0 0 0 0 rgba(255,0,0,0.7); }
+            50% { box-shadow: inset 0 0 0 20px rgba(255,0,0,0.7); }
+        }
+
+        .creature {
+            position: absolute;
+            cursor: pointer;
+            transition: transform 0.2s ease-in-out, filter 0.2s;
+            z-index: 10;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));
+        }
+        .creature img { width: 100%; height: 100%; object-fit: contain; }
+        .creature:hover { transform: scale(1.1); filter: drop-shadow(0 6px 10px rgba(0,0,0,0.4)); }
+        
+        .swimming-fish { animation: swim-around 11s infinite ease-in-out; }
+        @keyframes swim-around {
+            0% { transform: translate(0, 0); }
+            25% { transform: translate(20px, 10px); }
+            50% { transform: translate(10px, -5px); }
+            75% { transform: translate(-15px, 8px); }
+            100% { transform: translate(0, 0); }
+        }
+        
+        .gentle-swim { animation: gentle-swim-around 13s infinite ease-in-out; }
+        @keyframes gentle-swim-around {
+            0% { transform: translate(0, 0); }
+            25% { transform: translate(20px, 10px); }
+            50% { transform: translate(10px, -5px); }
+            75% { transform: translate(-15px, 8px); }
+            100% { transform: translate(0, 0); }
+        }
+
+        .bobbing-animation { animation: bob-around 7s infinite ease-in-out; }
+        @keyframes bob-around {
+            0% { transform: translateY(0px) rotate(-3deg); }
+            50% { transform: translateY(-15px) rotate(3deg); }
+            100% { transform: translateY(0px) rotate(-3deg); }
+        }
+
+        @keyframes shake {
+          10%, 90% { transform: translate3d(-1px, 0, 0) scale(1.1); } 20%, 80% { transform: translate3d(2px, 0, 0) scale(1.1); }
+          30%, 50%, 70% { transform: translate3d(-4px, 0, 0) scale(1.1); } 40%, 60% { transform: translate3d(4px, 0, 0) scale(1.1); }
+        }
+        .animate-shake { animation: shake 0.82s cubic-bezier(.36,.07,.19,.97) both; }
+
+        .breathing-animation { animation: breathe 4s ease-in-out infinite; }
+        @keyframes breathe {
+            0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); }
+        }
+        
+        .active-mission-target {
+            cursor: pointer;
+            animation: glow 2s infinite ease-in-out;
+        }
+         @keyframes glow {
+            0%, 100% { filter: drop-shadow(0 0 5px #fff) brightness(1); }
+            50% { filter: drop-shadow(0 0 15px #a7f3d0) brightness(1.2); }
+        }
+        .creature:not(.active-mission-target) { pointer-events: none; }
+        .creature.info-active { pointer-events: auto; }
+
+        @keyframes swim-horizontal-left {
+            0%   { transform: translateX(110vw) scaleX(1); }
+            100% { transform: translateX(-10vw) scaleX(1); }
+        }
+        @keyframes swim-horizontal-right {
+            0%   { transform: translateX(-10vw) scaleX(-1); }
+            100% { transform: translateX(110vw) scaleX(-1); }
+        }
+        @keyframes crawl-horizontal-left {
+            0%   { transform: translateX(110vw); }
+            100% { transform: translateX(-10vw); }
+        }
+        @keyframes crawl-horizontal-right {
+            0%   { transform: translateX(-10vw); }
+            100% { transform: translateX(110vw); }
+        }
+        
+        .audio-controls-panel input[type="range"] {
+            -webkit-appearance: none; appearance: none;
+            width: 100px; height: 6px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 5px; outline: none;
+            transition: background .2s;
+        }
+        .audio-controls-panel input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none;
+            width: 16px; height: 16px;
+            background: #fff;
+            cursor: pointer; border-radius: 50%;
+        }
+        .audio-controls-panel input[type="range"]:hover {
+             background: rgba(255, 255, 255, 0.5);
+        }
+        
+        .ripple-circle {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            border: 3px solid rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            animation: ripple 2.5s cubic-bezier(0, 0.2, 0.8, 1) infinite;
+            opacity: 0;
+        }
+        @keyframes ripple {
+            from {
+                width: 0;
+                height: 0;
+                opacity: 1;
+            }
+            to {
+                width: 150px;
+                height: 150px;
+                opacity: 0;
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translate3d(0, 30px, 0);
+            }
+            to {
+                opacity: 1;
+                transform: translate3d(0, 0, 0);
+            }
+        }
+        .fade-in-up {
+            opacity: 0;
+            animation: fadeInUp 0.8s ease-out forwards;
+        }
+    `}</style>
+);
+
+
+// --- COMPONENTES AUXILIARES ---
+
+const Preloader = ({ onLoaded }) => {
+    const [progress, setProgress] = useState(0);
+    // Usamos useRef para que los valores no se reinicien en cada renderizado
+    const totalAssets = useRef(ASSETS_TO_PRELOAD.length);
+    const loadedAssets = useRef(0);
+
+    // Este efecto se ejecuta una vez al montar el componente para iniciar la carga de todos los recursos.
+    useEffect(() => {
+        // Si no hay recursos que cargar, podemos finalizar inmediatamente.
+        if (totalAssets.current === 0) {
+            onLoaded();
+            return;
+        }
+
+        // Esta función se llama cada vez que un recurso (imagen o audio) termina de cargarse.
+        const handleAssetLoaded = () => {
+            loadedAssets.current += 1;
+            const currentProgress = (loadedAssets.current / totalAssets.current) * 100;
+            setProgress(currentProgress);
+
+            // Cuando todos los recursos se han cargado, llamamos a onLoaded después de una breve pausa para la UX.
+            if (loadedAssets.current === totalAssets.current) {
+                setTimeout(onLoaded, 500); // Pausa para mostrar el 100%
+            }
+        };
+
+        // Iteramos sobre la lista de recursos y creamos los elementos HTML correspondientes para iniciar su carga.
+        ASSETS_TO_PRELOAD.forEach(url => {
+            if (url.match(/\.(png|jpg|jpeg|gif)$/)) {
+                const img = new Image();
+                img.src = url;
+                img.onload = handleAssetLoaded;
+                img.onerror = handleAssetLoaded; // Lo contamos como "cargado" incluso si hay un error para no bloquear el juego.
+            } else if (url.match(/\.(m4a|mp3|wav|ogg)$/)) {
+                const audio = new Audio();
+                // 'canplaythrough' es un buen evento para escuchar, ya que indica que se ha cargado suficiente data para reproducir sin interrupciones.
+                audio.addEventListener('canplaythrough', handleAssetLoaded, { once: true });
+                audio.addEventListener('error', handleAssetLoaded, { once: true });
+                audio.src = url;
+            } else {
+                // Si el tipo de recurso es desconocido, lo contamos como cargado inmediatamente.
+                handleAssetLoaded();
+            }
+        });
+    }, [onLoaded]); // El array de dependencias asegura que este efecto se ejecute solo una vez.
+
+    return (
+        <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-[#005c97] to-[#1d3a70] text-white p-8">
+            <div className="w-full max-w-sm flex flex-col items-center gap-6">
+                <div className="relative w-32 h-32">
+                    <div className="ripple-circle" style={{ animationDelay: '0s' }}></div>
+                    <div className="ripple-circle" style={{ animationDelay: '1.2s' }}></div>
+                </div>
+                <p className="text-lg font-semibold tracking-wider">Descubriendo los secretos del océano...</p>
+                <p className="text-sm font-semibold">{Math.round(progress)}%</p>
+            </div>
+        </div>
+    );
+};
+
+const AudioControls = ({ musicVolume, setMusicVolume, sfxVolume, setSfxVolume, isMusicMuted, toggleMusicMute, isSfxMuted, toggleSfxMute }) => {
+    const [isOpen, setIsOpen] = useState(false);
+
+    return (
+        <div className="absolute top-4 right-4 z-40">
+            <button 
+                onClick={() => setIsOpen(!isOpen)} 
+                className="bg-blue-500 hover:bg-blue-600 text-white font-bold w-12 h-12 rounded-full shadow-lg flex items-center justify-center transform transition-transform hover:scale-110"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z" /></svg>
+            </button>
+            
+            {isOpen && (
+                <div className="audio-controls-panel absolute top-16 right-0 bg-black/50 backdrop-blur-md p-4 rounded-lg shadow-2xl flex flex-col gap-4 w-48">
+                    {/* Control de Música */}
+                    <div className="flex flex-col gap-2 text-white">
+                        <div className="flex items-center justify-between">
+                             <label className="text-sm font-semibold">Música</label>
+                             <button onClick={toggleMusicMute} className="transition-transform hover:scale-110">
+                                {isMusicMuted ? (
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM12.293 7.293a1 1 0 011.414 0L15 8.586l1.293-1.293a1 1 0 111.414 1.414L16.414 10l1.293 1.293a1 1 0 01-1.414 1.414L15 11.414l-1.293 1.293a1 1 0 01-1.414-1.414L13.586 10l-1.293-1.293a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                                ) : (
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a6 6 0 00-6 6v3.586l-1.707 1.707A1 1 0 003 15v1a1 1 0 001 1h12a1 1 0 001-1v-1a1 1 0 00-.293-.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" /></svg>
+                                )}
+                            </button>
+                        </div>
+                        <input type="range" min="0" max="1" step="0.01" value={musicVolume} onChange={(e) => setMusicVolume(parseFloat(e.target.value))} />
+                    </div>
+                    {/* Control de SFX */}
+                    <div className="flex flex-col gap-2 text-white">
+                        <div className="flex items-center justify-between">
+                            <label className="text-sm font-semibold">Efectos</label>
+                            <button onClick={toggleSfxMute} className="transition-transform hover:scale-110">
+                                {isSfxMuted ? (
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 15.657a1 1 0 01-1.414-1.414L14.586 13H12a1 1 0 110-2h2.586l-1.343-1.343a1 1 0 111.414-1.414l3 3a1 1 0 010 1.414l-3 3z" clipRule="evenodd" /></svg>
+                                ) : (
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a6 6 0 00-6 6v3.586l-1.707 1.707A1 1 0 003 15v1a1 1 0 001 1h12a1 1 0 001-1v-1a1 1 0 00-.293-.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" /></svg>
+                                )}
+                            </button>
+                        </div>
+                        <input type="range" min="0" max="1" step="0.01" value={sfxVolume} onChange={(e) => setSfxVolume(parseFloat(e.target.value))} />
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const MissionModal = ({ briefing, onStart }) => {
+    if (!briefing) return null;
+    return (
+        <div className="absolute inset-0 bg-black bg-opacity-70 flex flex-col items-center justify-center z-50 p-4">
+            <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-8 max-w-lg w-full text-center shadow-lg transform transition-all animate-fade-in-up">
+                <h2 className="text-3xl font-bold font-handwriting mb-4 text-blue-700">{briefing.title}</h2>
+                <p className="text-gray-700 mb-6 text-lg">{briefing.text}</p>
+                <button
+                    onClick={onStart}
+                    className="bg-blue-500 hover:bg-blue-600 font-bold py-3 px-8 rounded-full text-lg text-white transition-transform transform hover:scale-105 shadow-md inline-flex items-center gap-2"
+                >
+                    {briefing.buttonText}
+                </button>
+            </div>
+        </div>
+    );
+};
+
+const EmojiFish = ({ emoji, style }) => (
+    <div className="absolute" style={style}>
+        {emoji}
+    </div>
+);
+
+const DialogueBox = ({ dialogue, onClose }) => {
+    if (!dialogue.text) return null;
+    return (
+        <div 
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-11/12 max-w-lg bg-gradient-to-br from-white/95 to-blue-50/90 backdrop-blur-md p-6 md:p-8 rounded-2xl shadow-2xl z-30 border-4 border-blue-400/30 cursor-pointer"
+            onClick={onClose}
+        >
+            <p className="text-xl md:text-2xl text-center text-blue-900 font-semibold">{dialogue.text}</p>
+            <div className="text-center text-lg text-blue-600 font-handwriting mt-4">(Haz clic para continuar)</div>
+        </div>
+    );
+};
+
+const Creature = ({ id, name, data, style, className, onClick, isTarget, isInfoActive }) => (
+    <div
+        id={id}
+        className={`creature ${className} ${isTarget ? 'active-mission-target' : ''} ${isInfoActive ? 'info-active' : ''}`}
+        style={style}
+        onClick={() => onClick(name, data)}
+    >
+        <img src={data.src} alt={name} className="w-full h-full object-contain" />
+    </div>
+);
+
+const InfoCard = ({ cardData, onClose }) => {
+    if (!cardData) return null;
+    return (
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-11/12 max-w-sm bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg p-6 z-40">
+            <h3 className="text-2xl font-bold text-blue-800 mb-2 font-handwriting">{cardData.name}</h3>
+            <p className="text-gray-700 text-base">{cardData.info}</p>
+            <button onClick={onClose} className="absolute -top-3 -right-3 bg-red-500 text-white w-9 h-9 rounded-full shadow-lg text-xl font-bold flex items-center justify-center">&times;</button>
+        </div>
+    );
+};
+
+const LogbookModal = ({ discoveredSpecies, onClose }) => (
+    <div className="absolute inset-0 bg-black bg-opacity-80 flex flex-col items-center justify-center z-50 p-4 md:p-8">
+        <div className="bg-white rounded-2xl p-6 w-full max-w-4xl h-[90%] relative">
+            <h2 className="text-4xl font-bold font-handwriting text-center mb-4 text-blue-800">Diario Marino</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 overflow-y-auto h-[calc(100%-80px)] p-2">
+                {Array.from(discoveredSpecies.entries()).map(([name, data]) => (
+                    <div key={name} className="flex flex-col items-center p-3 bg-blue-50 rounded-lg text-center shadow-md border border-blue-100">
+                        <img src={data.src} alt={name} className="h-24 object-contain mb-2" />
+                        <h4 className="font-bold text-base text-blue-900">{name}</h4>
+                    </div>
+                ))}
+            </div>
+            <button onClick={onClose} className="absolute top-4 right-4 bg-red-500 hover:bg-red-600 text-white w-10 h-10 rounded-full shadow-lg text-2xl transition-transform transform hover:scale-110 flex items-center justify-center">&times;</button>
+        </div>
+    </div>
+);
+
+const QuizModal = ({ question, onAnswer }) => {
+    const [shaking, setShaking] = useState(false);
+
+    const handleAnswer = (isCorrect) => {
+        if (!isCorrect) {
+            setShaking(true);
+            setTimeout(() => setShaking(false), 820);
+        }
+        onAnswer(isCorrect);
+    };
+
+    return (
+        <div className="absolute inset-0 bg-black bg-opacity-70 flex flex-col items-center justify-center z-40 p-4">
+            <div className={`bg-white rounded-2xl p-8 max-w-lg w-full text-center shadow-lg transition-transform ${shaking ? 'animate-shake' : ''}`}>
+                <p className="text-gray-700 mb-6 text-xl font-semibold">{question.question}</p>
+                <div className="flex flex-col gap-3">
+                    {question.options.map(option => (
+                        <button
+                            key={option}
+                            onClick={() => handleAnswer(option === question.answer)}
+                            className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg transition-transform transform hover:scale-105"
+                        >
+                            {option}
+                        </button>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const ResultModal = ({ result, onAction }) => {
+    if (!result) return null;
+    const isWin = result.type === 'win';
+    return (
+        <div className="absolute inset-0 bg-black bg-opacity-70 flex flex-col items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-8 max-w-lg w-full text-center shadow-lg">
+                <h2 className={`text-5xl font-bold font-handwriting mb-4 ${isWin ? 'text-green-500' : 'text-red-500'}`}>{result.title}</h2>
+                <p className="text-gray-700 mb-8 text-xl">{result.text}</p>
+                <button
+                    onClick={onAction}
+                    className={`font-bold py-3 px-8 rounded-full text-lg transition-transform transform hover:scale-105 shadow-md inline-flex items-center gap-2 ${isWin ? 'bg-green-500 hover:bg-green-600' : 'bg-blue-500 hover:bg-blue-600'} text-white`}
+                >
+                    {result.buttonText} {isWin ? '➡️' : '🔄'}
+                </button>
+            </div>
+        </div>
+    );
+};
+
+const Bubbles = ({ count }) => (
+    <>
+        {Array.from({ length: count }).map((_, i) => {
+            const size = Math.random() * 40 + 10;
+            return (
+                <div
+                    key={i}
+                    className="bubble"
+                    style={{
+                        width: `${size}px`,
+                        height: `${size}px`,
+                        left: `${Math.random() * 100}%`,
+                        animationDuration: `${Math.random() * 8 + 7}s`,
+                        animationDelay: `${Math.random() * 10}s`,
+                    }}
+                />
+            );
+        })}
+    </>
+);
+
+// --- COMPONENTE PRINCIPAL ---
+export default function App() {
+    const [isLoading, setIsLoading] = useState(true);
+    // --- ESTADO DEL JUEGO ---
+    const [gameState, setGameState] = useState('splash');
+    const [dialogue, setDialogue] = useState({ text: '', onDismiss: null });
+    const [score, setScore] = useState(0);
+    const [timer, setTimer] = useState(MISSION_TIME);
+    const [accumulatedTrash, setAccumulatedTrash] = useState(0);
+    const [trashItems, setTrashItems] = useState([]);
+    const [missionTarget, setMissionTarget] = useState(null);
+    const [quizIndex, setQuizIndex] = useState(0);
+    const [infoCardData, setInfoCardData] = useState(null);
+    const [discoveredSpecies, setDiscoveredSpecies] = useState(new Map());
+    const [showLogbook, setShowLogbook] = useState(false);
+    const [gameResult, setGameResult] = useState(null);
+    const [isInfoActive, setIsInfoActive] = useState(false);
+    const [emojiFish, setEmojiFish] = useState([]);
+    const [missionBriefing, setMissionBriefing] = useState(null);
+    const gameContainerRef = useRef(null);
+
+    // --- ESTADO DE AUDIO ---
+    const [musicVolume, setMusicVolume] = useState(0.03);
+    const [sfxVolume, setSfxVolume] = useState(0.08);
+    const [isMusicMuted, setIsMusicMuted] = useState(false);
+    const [isSfxMuted, setIsSfxMuted] = useState(false);
+
+    // --- REFERENCIAS DE AUDIO ---
+    const audioRefs = {
+        bgMusic: useRef(null), 
+        sfxClick: useRef(null), 
+        sfxWin: useRef(null),
+        sfxLose: useRef(null), 
+        sfxCorrect: useRef(null)
+    };
+
+    // --- LÓGICA DE AUDIO ---
+    useEffect(() => {
+        if (audioRefs.bgMusic.current) {
+            audioRefs.bgMusic.current.volume = isMusicMuted ? 0 : musicVolume;
+        }
+    }, [musicVolume, isMusicMuted]);
+    
+    const playSfx = useCallback((soundRef) => {
+        if (soundRef.current && !isSfxMuted) {
+            soundRef.current.volume = sfxVolume;
+            soundRef.current.currentTime = 0;
+            soundRef.current.play().catch(e => {});
+        }
+    }, [sfxVolume, isSfxMuted]);
+
+    const toggleMusicMute = () => setIsMusicMuted(prev => !prev);
+    const toggleSfxMute = () => setIsSfxMuted(prev => !prev);
+    
+    // --- FUNCIONES DE LÓGICA ---
+    const showDialogue = (text, onDismiss = null) => {
+        setDialogue({ text, onDismiss });
+    };
+
+    const closeDialogue = () => {
+        if (dialogue.onDismiss) {
+            dialogue.onDismiss();
+        }
+        setDialogue({ text: '', onDismiss: null });
+    };
+
+    const handleStartGame = () => {
+        playSfx(audioRefs.sfxClick);
+        if (audioRefs.bgMusic.current) {
+            audioRefs.bgMusic.current.play().catch(e => {});
+        }
+        setIsInfoActive(true);
+        setGameState('trash');
+    };
+
+    const resetGame = () => {
+        setGameResult(null);
+        setGameState('splash');
+        setScore(0);
+        setTimer(MISSION_TIME);
+        setAccumulatedTrash(0);
+        setTrashItems([]);
+        setQuizIndex(0);
+        setIsInfoActive(false);
+    };
+    
+    const restartTrashMission = () => {
+        setGameResult(null);
+        setScore(0);
+        setTimer(MISSION_TIME);
+        setAccumulatedTrash(0);
+        setTrashItems([]);
+        setGameState('trash');
+    }
+
+    // Lógica de la misión de basura
+    useEffect(() => {
+        if (gameState !== 'trash') return;
+        showDialogue('¡El arrecife necesita tu ayuda! Recoge 10 objetos antes de que el tiempo acabe.');
+
+        const trashInterval = setInterval(() => {
+            setTrashItems(prev => [...prev, {
+                id: Date.now() + Math.random(),
+                emoji: TRASH_EMOJIS[Math.floor(Math.random() * TRASH_EMOJIS.length)],
+                style: {
+                    left: `${Math.random() * 90 + 5}%`,
+                    animationDuration: `${Math.random() * 4 + 5}s`
+                }
+            }]);
+        }, 1200);
+        const timerInterval = setInterval(() => setTimer(t => t > 0 ? t - 1 : 0), 1000);
+        return () => {
+            clearInterval(trashInterval);
+            clearInterval(timerInterval);
+        };
+    }, [gameState]);
+
+    useEffect(() => {
+        if (gameState === 'trash') {
+            if (score >= TRASH_GOAL) {
+                playSfx(audioRefs.sfxWin);
+                setGameState('transition');
+                showDialogue('¡Genial! Has limpiado la basura.', () => {
+                    setMissionBriefing({
+                        title: 'Misión 2: Identifica el Coral',
+                        text: '¡Buen trabajo! Ahora, ayuda a nuestros amigos identificando el Coral Cuerno de Alce para asegurar que el arrecife esté sano.',
+                        buttonText: '¡Comenzar!',
+                        nextState: 'coral'
+                    });
+                });
+            } else if (accumulatedTrash >= TRASH_LIMIT || timer <= 0) {
+                playSfx(audioRefs.sfxLose);
+                if(gameContainerRef.current) {
+                    gameContainerRef.current.classList.add('danger-alarm');
+                    setTimeout(() => gameContainerRef.current?.classList.remove('danger-alarm'), 1500);
+                }
+                setGameResult({ type: 'lose', title: '¡Misión Fallida!', text: '¡Oh no! El arrecife se contaminó.', buttonText: 'Intentar de Nuevo' });
+            }
+        }
+    }, [score, accumulatedTrash, timer, gameState, playSfx]);
+
+
+    const handleTrashClick = (id) => {
+        playSfx(audioRefs.sfxClick);
+        setTrashItems(items => items.filter(item => item.id !== id));
+        setScore(s => s + 1);
+    };
+
+    const handleTrashAnimationEnd = (id) => {
+        setTrashItems(items => items.filter(item => item.id !== id));
+        setAccumulatedTrash(at => at + 1);
+    };
+    
+    const handleStartNextMission = () => {
+        if (missionBriefing) {
+            playSfx(audioRefs.sfxClick);
+            setGameState(missionBriefing.nextState);
+            setMissionBriefing(null);
+        }
+    };
+    
+    // Lógica de la misión de corales
+    useEffect(() => {
+        if (gameState === 'coral') {
+            showDialogue('¡Excelente! Ahora, identifica el Coral Cuerno de Alce.');
+            setMissionTarget(null);
+        }
+    }, [gameState]);
+
+    // Lógica para crear peces emoji
+    useEffect(() => {
+        if (gameState !== 'splash') {
+            const createFish = () => FISH_EMOJIS.flatMap((emoji, index) => 
+                Array.from({ length: 2 }).map((_, i) => {
+                    const isCrab = emoji === '🦀';
+                    const size = Math.random() * 2 + 1.5;
+                    const duration = Math.random() * 15 + 20;
+                    const delay = Math.random() * 25;
+                    const direction = Math.random() > 0.5 ? 'right' : 'left';
+                    const top = isCrab ? `${Math.random() * 8 + 85}%` : `${Math.random() * 65 + 10}%`;
+                    const animationName = isCrab ? `crawl-horizontal-${direction}` : `swim-horizontal-${direction}`;
+                    return {
+                        id: `fish-${index}-${i}`,
+                        emoji,
+                        style: { top, fontSize: `${size}rem`, animation: `${animationName} ${duration}s linear ${delay}s infinite backwards`, zIndex: 6 }
+                    };
+                })
+            );
+            setEmojiFish(createFish());
+        } else {
+            setEmojiFish([]);
+        }
+    }, [gameState]);
+
+    const handleCreatureClick = useCallback((name, data) => {
+        if (dialogue.text) return; // Evita clics mientras hay un diálogo
+
+        if (gameState === 'coral') {
+            if (data.isCorrectCoral) {
+                playSfx(audioRefs.sfxCorrect);
+                showDialogue('¡Correcto! ¡Ese es el Coral Cuerno de Alce!', () => {
+                    setGameState('transition');
+                    setMissionBriefing({ title: 'Misión 3: Encuentra a los Amigos', text: '¡Excelente! Ahora, encuentra a las criaturas que te indicaremos para completar tu diario marino.', buttonText: '¡Vamos!', nextState: 'find' });
+                });
+            } else {
+                playSfx(audioRefs.sfxLose);
+                showDialogue('Ese no es. Sigue intentando...');
+            }
+        } else if (gameState === 'find' && name === missionTarget) {
+            playSfx(audioRefs.sfxCorrect);
+            const nextIndex = CREATURE_FIND_LIST.indexOf(missionTarget) + 1;
+            if (nextIndex >= CREATURE_FIND_LIST.length) {
+                showDialogue('¡Lo lograste! Has encontrado a todos nuestros amigos.', () => {
+                    setGameState('transition');
+                    setMissionBriefing({ title: 'Misión Final: El Cuestionario del Pulpo', text: 'Has encontrado a todos. Es hora de la prueba final. Habla con el Pulpo Sabio para demostrar tus conocimientos.', buttonText: 'Entendido', nextState: 'quiz' });
+                });
+            } else {
+                showDialogue(`¡Excelente! Encontraste al ${missionTarget}.`, () => {
+                    const nextCreature = CREATURE_FIND_LIST[nextIndex];
+                    setMissionTarget(nextCreature);
+                    showDialogue(`Ahora, encuentra al ${nextCreature}.`);
+                });
+            }
+        } else if (gameState === 'quiz' && name === 'Pulpo Sabio') {
+            playSfx(audioRefs.sfxClick);
+            setMissionTarget(null);
+        } else if (isInfoActive) {
+            playSfx(audioRefs.sfxClick);
+            setInfoCardData({ name, ...data });
+            if (!discoveredSpecies.has(name)) {
+                setDiscoveredSpecies(prevMap => new Map(prevMap).set(name, data));
+            }
+        }
+    }, [gameState, missionTarget, discoveredSpecies, isInfoActive, playSfx, dialogue.text]);
+    
+    useEffect(() => {
+        if (gameState === 'find') {
+            const firstCreature = CREATURE_FIND_LIST[0];
+            setMissionTarget(firstCreature);
+            showDialogue(`¡Comencemos! Primero, encuentra al ${firstCreature}.`);
+        }
+    }, [gameState]);
+
+    useEffect(() => {
+        if (gameState === 'quiz') {
+            showDialogue('Habla con el Pulpo Sabio para empezar el cuestionario final.');
+            setMissionTarget('Pulpo Sabio');
+        }
+    }, [gameState]);
+    
+    const handleQuizAnswer = (isCorrect) => {
+        playSfx(isCorrect ? audioRefs.sfxCorrect : audioRefs.sfxLose);
+        if (isCorrect) {
+            const nextQuizIndex = quizIndex + 1;
+            if (nextQuizIndex >= QUIZ_QUESTIONS.length) {
+                setGameState('end');
+                showDialogue('¡Fantástico! Sabes mucho sobre el arrecife.', () => {
+                     setGameResult({ type: 'win', title: '¡Aventura Completada!', text: '¡Has superado todos los retos! Eres un verdadero Guardián del Mar.', buttonText: 'Jugar de Nuevo' });
+                });
+            } else {
+                setQuizIndex(nextQuizIndex);
+            }
+        }
+    };
+
+
+    // --- RENDERIZADO ---
+    if (isLoading) {
+        return <Preloader onLoaded={() => setIsLoading(false)} />;
+    }
+
+    return (
+        <div className="w-screen h-screen font-sans">
+            <GlobalStyles />
+            <div ref={gameContainerRef} className="w-full h-full overflow-hidden relative">
+                {gameState === 'splash' ? (
+                     <div id="splash-screen" className="w-full h-full flex flex-col items-center justify-center text-white p-6 text-center">
+                        <div className="flex flex-col items-center justify-around h-full py-8">
+                            <div className="flex flex-col items-center gap-4">
+                                <img 
+                                    src="https://raw.githubusercontent.com/NucleoColectivo/Juego_Oceano/main/LOGOS/RETO_MARINO2.png" 
+                                    alt="Reto Marino Logo"
+                                    className="w-10/12 max-w-xs md:max-w-lg fade-in-up"
+                                    style={{animationDelay: '0.5s', filter: 'drop-shadow(3px 3px 6px rgba(0,0,0,0.5))'}}
+                                />
+                                <img 
+                                    src="https://raw.githubusercontent.com/NucleoColectivo/Juego_Oceano/main/LOGOS/LOGO%20ADM-01.png"
+                                    alt="Agenda Del Mar Logo"
+                                    className="w-5/12 max-w-[180px] fade-in-up"
+                                    style={{animationDelay: '0.8s', filter: 'drop-shadow(2px 2px 4px rgba(0,0,0,0.5))'}}
+                                />
+                                <p className="text-base sm:text-lg md:text-xl max-w-md fade-in-up" style={{animationDelay: '1.1s', textShadow: '2px 2px 4px rgba(0,0,0,0.5)'}}>Una Aventura Interactiva para proteger los corales del Caribe.</p>
+                            </div>
+                            <button onClick={handleStartGame} className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-full text-lg md:text-xl transition-all transform hover:scale-105 shadow-xl border-4 border-blue-300/50 fade-in-up" style={{animationDelay: '1.4s'}}>
+                                ¡Iniciar Aventura! 🌊
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <main className="w-full h-full ocean-bg">
+                        <Bubbles count={20} />
+                        {emojiFish.map(fish => <EmojiFish key={fish.id} emoji={fish.emoji} style={fish.style} />)}
+                        
+                        {/* UI del Juego */}
+                        <div className={`absolute top-4 left-4 flex gap-4 transition-opacity duration-300 ${gameState !== 'trash' ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+                            <div className="bg-black/30 backdrop-blur-sm p-2 px-4 rounded-xl text-center">
+                                <h2 className="font-bold text-white text-sm">Tiempo</h2>
+                                <p className="text-white text-2xl font-bold">{timer}</p>
+                            </div>
+                            <div className="bg-black/30 backdrop-blur-sm p-2 px-4 rounded-xl text-center">
+                                <h2 className="font-bold text-white text-sm">Basura</h2>
+                                <p className="text-white text-2xl font-bold">{score} / {TRASH_GOAL}</p>
+                            </div>
+                        </div>
+
+                        <button onClick={() => setShowLogbook(true)} className="absolute bottom-5 left-5 bg-yellow-500 hover:bg-yellow-600 text-white font-bold w-12 h-12 rounded-full shadow-lg z-30 transform hover:scale-110 transition flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z" /></svg>
+                        </button>
+                        
+                        <DialogueBox dialogue={dialogue} onClose={closeDialogue} />
+                        
+                        {/* Capa de Criaturas */}
+                        <div id="sea-creatures-layer">
+                           <Creature id="octopus" name="Pulpo Sabio" data={CREATURE_DATA['Pulpo Sabio']} style={{ width: 'clamp(180px, 28vw, 300px)', bottom: '15%', left: '1%' }} className="breathing-animation" onClick={handleCreatureClick} isTarget={missionTarget === 'Pulpo Sabio'} isInfoActive={isInfoActive} />
+                            <Creature id="coral-estrella" name="Coral Estrella" data={CREATURE_DATA['Coral Estrella']} style={{ width: 'clamp(110px, 18vw, 150px)', bottom: '1%', left: '30%' }} className="breathing-animation" onClick={handleCreatureClick} isTarget={false} isInfoActive={isInfoActive} />
+                            <Creature id="coral-cuerno-de-alce" name="Coral Cuerno de Alce" data={CREATURE_DATA['Coral Cuerno de Alce']} style={{ width: 'clamp(110px, 18vw, 180px)', bottom: '5%', left: '25%', zIndex: 9 }} className="breathing-animation" onClick={handleCreatureClick} isTarget={gameState === 'coral'} isInfoActive={isInfoActive} />
+                            <Creature id="coral-flor" name="Coral Flor" data={CREATURE_DATA['Coral Flor']} style={{ width: 'clamp(80px, 14vw, 120px)', bottom: '2%', left: '42%' }} className="breathing-animation" onClick={handleCreatureClick} isTarget={gameState === 'coral'} isInfoActive={isInfoActive} />
+                            <Creature id="polipo" name="Pólipo de Coral" data={CREATURE_DATA['Pólipo de Coral']} style={{ width: 'clamp(40px, 6vw, 50px)', bottom: '4%', left: '52%' }} className="breathing-animation" onClick={handleCreatureClick} isTarget={missionTarget === 'Pólipo de Coral'} isInfoActive={isInfoActive} />
+                            <Creature id="coral-cerebro" name="Coral Cerebro" data={CREATURE_DATA['Coral Cerebro']} style={{ width: 'clamp(90px, 15vw, 130px)', bottom: '8%', left: '55%' }} className="breathing-animation" onClick={handleCreatureClick} isTarget={gameState === 'coral'} isInfoActive={isInfoActive} />
+                            <Creature id="guide-sponge" name="Esponja de Mar" data={CREATURE_DATA['Esponja de Mar']} style={{ width: 'clamp(150px, 25vw, 250px)', bottom: '2%', right: '3%' }} className="breathing-animation" onClick={handleCreatureClick} isTarget={false} isInfoActive={isInfoActive} />
+                            <Creature id="camaron" name="Camarón" data={CREATURE_DATA['Camarón']} style={{ width: 'clamp(100px, 18vw, 150px)', bottom: '3%', right: '25%' }} className="breathing-animation" onClick={handleCreatureClick} isTarget={missionTarget === 'Camarón'} isInfoActive={isInfoActive} />
+                            
+                            <Creature id="pez-globo" name="Pez Globo" data={CREATURE_DATA['Pez Globo']} style={{ width: 'clamp(80px, 14vw, 120px)', top: '15%', left: '20%' }} className="swimming-fish" onClick={handleCreatureClick} isTarget={missionTarget === 'Pez Globo'} isInfoActive={isInfoActive} />
+                            <Creature id="pez-loro" name="Pez Loro" data={CREATURE_DATA['Pez Loro']} style={{ width: 'clamp(130px, 22vw, 200px)', top: '12%', left: '40%' }} className="gentle-swim" onClick={handleCreatureClick} isTarget={missionTarget === 'Pez Loro'} isInfoActive={isInfoActive} />
+                            <Creature id="caballito-de-mar" name="Caballito de Mar" data={CREATURE_DATA['Caballito de Mar']} style={{ width: 'clamp(70px, 12vw, 90px)', top: '55%', right: '45%' }} className="bobbing-animation" onClick={handleCreatureClick} isTarget={missionTarget === 'Caballito de Mar'} isInfoActive={isInfoActive} />
+                            <Creature id="pez-loreto" name="Pez Loreto" data={CREATURE_DATA['Pez Loreto']} style={{ width: 'clamp(70px, 12vw, 100px)', top: '25%', right: '28%' }} className="gentle-swim" onClick={handleCreatureClick} isTarget={missionTarget === 'Pez Loreto'} isInfoActive={isInfoActive} />
+                        </div>
+
+
+                        {gameState === 'trash' && (
+                            <div id="trash-container" className="z-20">
+                                {trashItems.map(item => (
+                                    <div key={item.id} className="trash-item text-4xl hover:scale-125 transition-transform" style={item.style} onClick={() => handleTrashClick(item.id)} onAnimationEnd={() => handleTrashAnimationEnd(item.id)}>
+                                        {item.emoji}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        
+                        <img src="https://raw.githubusercontent.com/NucleoColectivo/Juego_Oceano/main/personajes/png/arena.png" alt="Fondo de arena" className="absolute bottom-0 left-0 w-full h-auto max-h-24 z-[9] pointer-events-none" />
+
+                        <MissionModal briefing={missionBriefing} onStart={handleStartNextMission} />
+                        {infoCardData && <InfoCard cardData={infoCardData} onClose={() => setInfoCardData(null)} />}
+                        {showLogbook && <LogbookModal discoveredSpecies={discoveredSpecies} onClose={() => setShowLogbook(false)} />}
+                        {gameState === 'quiz' && missionTarget === null && <QuizModal question={QUIZ_QUESTIONS[quizIndex]} onAnswer={handleQuizAnswer} />}
+                        {gameResult && <ResultModal result={gameResult} onAction={gameResult?.type === 'lose' ? restartTrashMission : resetGame} />}
+                    </main>
+                )}
+                 {/* Efectos de Sonido */}
+                <audio ref={audioRefs.bgMusic} loop src="https://raw.githubusercontent.com/NucleoColectivo/Juego_Oceano/main/Sounds/SONIDO/Music_fx_cheerful_and_oceanthemed_background%20(3).m4a" preload="auto" crossOrigin="anonymous"></audio>
+                <audio ref={audioRefs.sfxClick} src="https://raw.githubusercontent.com/NucleoColectivo/Juego_Oceano/main/Sounds/SONIDO/SFX_for_a_button_or_interface.m4a" preload="auto" crossOrigin="anonymous"></audio>
+                <audio ref={audioRefs.sfxWin} src="https://raw.githubusercontent.com/NucleoColectivo/Juego_Oceano/main/Sounds/SONIDO/SFX_win_sound.m4a" preload="auto" crossOrigin="anonymous"></audio>
+                <audio ref={audioRefs.sfxLose} src="https://raw.githubusercontent.com/NucleoColectivo/Juego_Oceano/main/Sounds/SONIDO/SFX_for_a_game_or_app_when_the_user_loses.m4a" preload="auto" crossOrigin="anonymous"></audio>
+                <audio ref={audioRefs.sfxCorrect} src="https://raw.githubusercontent.com/NucleoColectivo/Juego_Oceano/main/Sounds/SONIDO/SFX_for_a_correct_or_successful_action.m4a" preload="auto" crossOrigin="anonymous"></audio>
+
+                <AudioControls 
+                    musicVolume={musicVolume} 
+                    setMusicVolume={setMusicVolume} 
+                    sfxVolume={sfxVolume} 
+                    setSfxVolume={setSfxVolume} 
+                    isMusicMuted={isMusicMuted} 
+                    toggleMusicMute={toggleMusicMute}
+                    isSfxMuted={isSfxMuted}
+                    toggleSfxMute={toggleSfxMute}
+                />
+            </div>
+        </div>
+    );
 }
-</script>
-</head>
-  <body>
-    <noscript>You need to enable JavaScript to run this app.</noscript>
-    <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
-  </body>
-</html>
+
